@@ -1,0 +1,8 @@
+*.exe
+*.msi*
+*.zip
+*.mst
+*.txt
+/VPN Clients/*
+/Cyberark Certs/*
+/config/*
