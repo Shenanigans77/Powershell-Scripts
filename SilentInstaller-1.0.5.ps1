@@ -19,6 +19,7 @@ if ($Verbose) {
 }
 
 # Set VPN flags based on keyword input
+# Remove later
 switch ($Keyword) {
     "HRSA" {
         $CMS = $false
