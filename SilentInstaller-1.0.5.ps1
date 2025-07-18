@@ -17,13 +17,6 @@ param (
     [switch]$Verbose
 )
 
-# Check Processor Architecture
-$procArchitecture 
-if ( $env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
-    $Proc
-}
- 
-
 # Initialize VPN flags
 $HRSA = $true
 $CMS = $true
