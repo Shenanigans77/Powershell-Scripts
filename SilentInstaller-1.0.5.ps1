@@ -1,13 +1,28 @@
+<#
+    SilentInstaller installs all required SSI applications without requiring user intervention. 
+    Additionally, Swift Assist is installed, and the SSI printers are configured. 
+
+    The script uses a configuration file located in the /config directory.
+    Running SilentInstaller with no arguments defaults to installing all items defined in the config file.
+#>
+
 param (
     [ValidateNotNullOrEmpty()]
     # Update this config file Yearly.
-    [string]$ConfigFile = "config\SSI-Install-2024-Default.json",
+    [string]$ConfigFile = "config\SSI-Install-Default.json",
     
     [ValidateSet("HRSA", "CMS", "Both", "")]
     [string]$Keyword,
     
     [switch]$Verbose
 )
+
+# Check Processor Architecture
+$procArchitecture 
+if ( $env:PROCESSOR_ARCHITECTURE -eq 'AMD64') {
+    $Proc
+}
+ 
 
 # Initialize VPN flags
 $HRSA = $true
@@ -16,22 +31,6 @@ $CMS = $true
 # Verbose Mode Handling
 if ($Verbose) {
     $VerbosePreference = 'Continue'
-}
-
-# Set VPN flags based on keyword input
-# Remove later
-switch ($Keyword) {
-    "HRSA" {
-        $CMS = $false
-    }
-    "CMS" {
-        $HRSA = $false
-    }
-    "Both" {
-        $HRSA = $true
-        $CMS = $true
-    }
-    Default {}
 }
 
 # Check if the config file exists
@@ -51,13 +50,31 @@ $TotalSteps = $config.Count
 $CurrentStep = 0
 
 # Iterate over each item in the configuration
-foreach ($item in $config) {
+foreach ($app in $config.apps) {
     try {
         # Check if the item should be skipped based on VPN flags
-        if (($item.Name -eq "Cisco Anyconnect" -and -not $HRSA) -or
-            (($item.Name -eq "Citrix Workspace" -or $item.Name -eq "Zscaler") -and -not $CMS)) {
-            Write-Verbose "Skipping $($item.Name) as it's not required based on VPN selection."
+        if (($app.Name -eq "Cisco Anyconnect" -and -not $HRSA) -or
+            (($app.Name -eq "Citrix Workspace" -or $app.Name -eq "Zscaler") -and -not $CMS)) {
+            Write-Verbose "Skipping $($app.Name) as it's not required based on VPN selection."
             continue
+        }
+        
+        $installer = $null
+        # Check processor architecture to install the correct DUO version.
+        if ($app.PSObject.Properties['architecture']) {
+            $archMap = $app.architecture
+
+            if ($archMap.ContainsKey($architecture)) {
+                $installer = $archMap[$architecture]
+            } elseif ($archMap.ContainsKey("x86") -and $architecture -eq "AMD64") {
+                # Optional fallback for AMD64 to x86 if needed
+                $installer = $archMap["x86"]
+            } else {
+                Write-Warning "No installer found for $($app.name) on $architecture"
+                continue
+            }
+        } elseif ($app.PSObject.Properties['FilePath']) {
+            $installer = $app.FilePath
         }
 
         # Increment step counter
@@ -67,22 +84,22 @@ foreach ($item in $config) {
         $PercentComplete = [math]::Round(($CurrentStep / $TotalSteps) * 100, 2)
 
         # Display progress
-        Write-Progress -Activity "Installing SSI 2024 Software Suite" -Status "Step $CurrentStep of $TotalSteps\: Installing $($item.Name)" -PercentComplete $PercentComplete
+        Write-Progress -Activity "Installing SSI 2025 Software Suite" -Status "Step $CurrentStep of $TotalSteps\: Installing $($app.Name)" -PercentComplete $PercentComplete
 
         # Prepare Start-Process parameters
         $params = @{
-            FilePath      = $item.FilePath
-            ArgumentList  = $item.ArgumentList
+            FilePath      = $installer
+            ArgumentList  = $app.ArgumentList
             PassThru      = $true
             Wait          = $true
         }
 
         # Start the installation process
         Start-Process @params
-        Write-Host "$($item.Name) installed successfully." -ForegroundColor Green
+        Write-Host "$($app.Name) installed successfully." -ForegroundColor Green
     }
     catch {
-        Write-Error "Failed to install $($item.Name): $_.Exception.Message"
+        Write-Error "Failed to install $($app.Name): $_.Exception.Message"
     }
     finally {
         Write-Verbose "Completed step $CurrentStep of $TotalSteps."
